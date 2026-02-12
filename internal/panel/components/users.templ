@@ -1,0 +1,194 @@
+package components
+
+import "github.com/sartoopjj/dnsttui/internal/database"
+import "fmt"
+
+templ UsersPage(users []database.SSUser) {
+	@Layout("Users") {
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<h1 class="text-2xl font-bold text-gray-900">Shadowsocks Users</h1>
+		</div>
+
+		<!-- Add User Form -->
+		<div class="mb-6 rounded-lg bg-white p-6 shadow">
+			<h3 class="text-lg font-medium text-gray-900 mb-4">Add New User</h3>
+			<form hx-post="users" hx-target="#user-table-body" hx-swap="afterbegin" hx-on::after-request="if(event.detail.successful) this.reset()">
+				<div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
+					<div>
+						<label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+						<input type="text" name="username" id="username" required
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1.5 px-3 ring-1 ring-inset ring-gray-300"/>
+					</div>
+					<div>
+						<label for="traffic_limit" class="block text-sm font-medium text-gray-700">Traffic Limit (GB, 0=unlimited)</label>
+						<input type="number" name="traffic_limit" id="traffic_limit" value="0" min="0"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1.5 px-3 ring-1 ring-inset ring-gray-300"/>
+					</div>
+					<div>
+						<label for="expire_at" class="block text-sm font-medium text-gray-700">Expire Date (optional)</label>
+						<input type="date" name="expire_at" id="expire_at"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1.5 px-3 ring-1 ring-inset ring-gray-300"/>
+					</div>
+					<div class="flex items-end">
+						<button type="submit"
+							class="inline-flex justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+							Add User
+						</button>
+					</div>
+				</div>
+			</form>
+			<div id="alert-container" class="mt-4"></div>
+		</div>
+
+		<!-- Users Table -->
+		<div class="overflow-hidden rounded-lg bg-white shadow">
+			<table class="min-w-full divide-y divide-gray-300">
+				<thead class="bg-gray-50">
+					<tr>
+						<th class="px-4 py-3 text-left text-sm font-semibold text-gray-900">Username</th>
+						<th class="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+						<th class="px-4 py-3 text-left text-sm font-semibold text-gray-900">Traffic Used</th>
+						<th class="px-4 py-3 text-left text-sm font-semibold text-gray-900">Limit</th>
+						<th class="px-4 py-3 text-left text-sm font-semibold text-gray-900">Expires</th>
+						<th class="px-4 py-3 text-right text-sm font-semibold text-gray-900">Actions</th>
+					</tr>
+				</thead>
+				<tbody id="user-table-body" class="divide-y divide-gray-200 bg-white">
+					for _, user := range users {
+						@UserRow(user)
+					}
+				</tbody>
+			</table>
+			if len(users) == 0 {
+				<div class="p-8 text-center text-gray-500">No users yet. Add one above.</div>
+			}
+		</div>
+
+		<!-- Modal container for config display -->
+		<div id="modal-container"></div>
+	}
+}
+
+templ UserRow(user database.SSUser) {
+	<tr id={ fmt.Sprintf("user-%d", user.ID) }>
+		<td class="whitespace-nowrap px-4 py-4 text-sm font-medium text-gray-900">{ user.Username }</td>
+		<td class="whitespace-nowrap px-4 py-4 text-sm">
+			<span class={ "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", UserStatusClass(user) }>
+				{ UserStatusText(user) }
+			</span>
+		</td>
+		<td class="whitespace-nowrap px-4 py-4 text-sm text-gray-500">
+			↑{ FormatBytes(user.TrafficUsedUp) } / ↓{ FormatBytes(user.TrafficUsedDown) }
+		</td>
+		<td class="whitespace-nowrap px-4 py-4 text-sm text-gray-500">{ FormatTrafficLimit(user.TrafficLimit) }</td>
+		<td class="whitespace-nowrap px-4 py-4 text-sm text-gray-500">
+			if user.ExpireAt != nil {
+				{ user.ExpireAt.Format("2006-01-02") }
+			} else {
+				Never
+			}
+		</td>
+		<td class="whitespace-nowrap px-4 py-4 text-right text-sm space-x-2">
+			<button
+				hx-get={ fmt.Sprintf("users/%d/config", user.ID) }
+				hx-target="#modal-container"
+				hx-swap="innerHTML"
+				class="text-indigo-600 hover:text-indigo-900 text-xs font-medium">Config</button>
+			<button
+				hx-get={ fmt.Sprintf("users/%d/edit", user.ID) }
+				hx-target={ fmt.Sprintf("#user-%d", user.ID) }
+				hx-swap="outerHTML"
+				class="text-blue-600 hover:text-blue-900 text-xs font-medium">Edit</button>
+			<button
+				hx-post={ fmt.Sprintf("users/%d/toggle", user.ID) }
+				hx-target={ fmt.Sprintf("#user-%d", user.ID) }
+				hx-swap="outerHTML"
+				class="text-yellow-600 hover:text-yellow-900 text-xs font-medium">
+				if user.Enabled {
+					Disable
+				} else {
+					Enable
+				}
+			</button>
+			<button
+				hx-post={ fmt.Sprintf("users/%d/reset", user.ID) }
+				hx-target={ fmt.Sprintf("#user-%d", user.ID) }
+				hx-swap="outerHTML"
+				hx-confirm="Reset traffic counters?"
+				class="text-orange-600 hover:text-orange-900 text-xs font-medium">Reset</button>
+			<button
+				hx-delete={ fmt.Sprintf("users/%d", user.ID) }
+				hx-target={ fmt.Sprintf("#user-%d", user.ID) }
+				hx-swap="outerHTML swap:0.5s"
+				hx-confirm="Delete this user?"
+				class="text-red-600 hover:text-red-900 text-xs font-medium">Delete</button>
+		</td>
+	</tr>
+}
+
+templ EditUserForm(user database.SSUser) {
+	<tr id={ fmt.Sprintf("user-%d", user.ID) }>
+		<td colspan="6" class="px-4 py-4">
+			<form
+				hx-put={ fmt.Sprintf("users/%d", user.ID) }
+				hx-target={ fmt.Sprintf("#user-%d", user.ID) }
+				hx-swap="outerHTML"
+				class="grid grid-cols-1 gap-3 sm:grid-cols-5">
+				<input type="text" name="username" value={ user.Username }
+					class="rounded-md border-gray-300 shadow-sm text-sm py-1 px-2 ring-1 ring-inset ring-gray-300"/>
+				<div class="flex items-center">
+					<input type="checkbox" name="enabled" id={ fmt.Sprintf("enabled-%d", user.ID) }
+						if user.Enabled {
+							checked
+						}
+						class="rounded border-gray-300 text-indigo-600"/>
+					<label for={ fmt.Sprintf("enabled-%d", user.ID) } class="ml-2 text-sm text-gray-700">Enabled</label>
+				</div>
+				<input type="number" name="traffic_limit" value={ fmt.Sprintf("%d", user.TrafficLimit/(1024*1024*1024)) }
+					class="rounded-md border-gray-300 shadow-sm text-sm py-1 px-2 ring-1 ring-inset ring-gray-300"
+					placeholder="GB (0=unlimited)"/>
+				<input type="date" name="expire_at"
+					if user.ExpireAt != nil {
+						value={ user.ExpireAt.Format("2006-01-02") }
+					}
+					class="rounded-md border-gray-300 shadow-sm text-sm py-1 px-2 ring-1 ring-inset ring-gray-300"/>
+				<div class="flex space-x-2">
+					<button type="submit" class="rounded bg-indigo-600 px-3 py-1 text-sm text-white hover:bg-indigo-500">Save</button>
+					<button type="button"
+						hx-get={ fmt.Sprintf("users/%d", user.ID) }
+						hx-target={ fmt.Sprintf("#user-%d", user.ID) }
+						hx-swap="outerHTML"
+						class="rounded bg-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-400">Cancel</button>
+				</div>
+			</form>
+		</td>
+	</tr>
+}
+
+templ UserConfigModal(username string, configJSON string) {
+	<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+		<div class="flex min-h-full items-center justify-center p-4">
+			<div class="fixed inset-0 bg-gray-500 bg-opacity-75" onclick="document.getElementById('modal-container').innerHTML=''"></div>
+			<div class="relative transform overflow-hidden rounded-lg bg-white shadow-xl sm:w-full sm:max-w-2xl">
+				<div class="bg-white px-4 pt-5 pb-4 sm:p-6">
+					<div class="flex items-center justify-between mb-4">
+						<h3 class="text-lg font-semibold text-gray-900">MahsaNG Config for { username }</h3>
+						<button onclick="document.getElementById('modal-container').innerHTML=''"
+							class="text-gray-400 hover:text-gray-500">✕</button>
+					</div>
+					<div class="relative">
+						<pre id="config-json" class="bg-gray-900 text-green-400 p-4 rounded-lg text-xs overflow-x-auto max-h-96">{ configJSON }</pre>
+						<button id="copy-btn"
+							onclick="copyToClipboard(document.getElementById('config-json').textContent)"
+							class="absolute top-2 right-2 rounded bg-gray-700 px-3 py-1 text-xs text-gray-300 hover:bg-gray-600">
+							Copy
+						</button>
+					</div>
+					<p class="mt-3 text-xs text-gray-500">
+						Import this JSON config into MahsaNG.
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+}

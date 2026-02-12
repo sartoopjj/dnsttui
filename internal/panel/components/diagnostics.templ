@@ -1,0 +1,79 @@
+package components
+
+import "fmt"
+
+type DiagnosticsData struct {
+	DNSTTRunning    bool
+	DNSTTSessions   int64
+	DNSTTStreams     int64
+	SSConnections   int64
+	DNSTTDomain     string
+	DNSTTUDPAddr    string
+	DNSResolverAddr string
+	DNSResolverPort int
+}
+
+templ DiagnosticsPage(data DiagnosticsData) {
+	@Layout("Diagnostics") {
+		<h1 class="text-2xl font-bold text-gray-900 mb-6">Diagnostics</h1>
+
+		<!-- Component Status -->
+		<div class="rounded-lg bg-white p-6 shadow mb-6">
+			<h3 class="text-lg font-medium text-gray-900 mb-4">Component Status</h3>
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+				@statusBadge("DNS Tunnel (dnstt)", data.DNSTTRunning)
+				@statusBadge("Shadowsocks", true)
+				@statusBadge("Web Panel", true)
+			</div>
+		</div>
+
+		<!-- Live Statistics -->
+		<div class="rounded-lg bg-white p-6 shadow mb-6" hx-get="diagnostics" hx-trigger="every 10s" hx-select="#live-stats" hx-target="#live-stats" hx-swap="outerHTML">
+			<h3 class="text-lg font-medium text-gray-900 mb-4">Live Statistics</h3>
+			<div id="live-stats" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+				@diagStat("DNSTT Active Sessions", int64ToStr(data.DNSTTSessions))
+				@diagStat("DNSTT Active Streams", int64ToStr(data.DNSTTStreams))
+				@diagStat("SS Active Connections", int64ToStr(data.SSConnections))
+			</div>
+		</div>
+
+		<!-- Configuration Check -->
+		<div class="rounded-lg bg-white p-6 shadow mb-6">
+			<h3 class="text-lg font-medium text-gray-900 mb-4">Configuration</h3>
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				@diagConfig("Tunnel Domain", data.DNSTTDomain)
+				@diagConfig("UDP Listen Address", data.DNSTTUDPAddr)
+				@diagConfig("DNS Resolver", fmt.Sprintf("%s:%d", data.DNSResolverAddr, data.DNSResolverPort))
+			</div>
+		</div>
+	}
+}
+
+templ statusBadge(name string, running bool) {
+	<div class="flex items-center justify-between rounded-md border p-4">
+		<span class="text-sm font-medium text-gray-700">{ name }</span>
+		if running {
+			<span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Running</span>
+		} else {
+			<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Stopped</span>
+		}
+	</div>
+}
+
+templ diagStat(label, value string) {
+	<div class="rounded-md border p-4">
+		<dt class="text-sm font-medium text-gray-500">{ label }</dt>
+		<dd class="mt-1 text-2xl font-semibold text-gray-900">{ value }</dd>
+	</div>
+}
+
+templ diagConfig(label, value string) {
+	<div class="rounded-md border p-4">
+		<dt class="text-sm font-medium text-gray-500">{ label }</dt>
+		if value != "" && value != ":0" {
+			<dd class="mt-1 text-sm font-mono text-gray-900">{ value }</dd>
+		} else {
+			<dd class="mt-1 text-sm text-red-500 italic">Not configured</dd>
+		}
+	</div>
+}

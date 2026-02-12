@@ -1,0 +1,152 @@
+package components
+
+templ HelpPage(domain string, pubkey string) {
+	@Layout("Help") {
+		<h1 class="text-2xl font-bold text-gray-900 mb-6">Setup Guide</h1>
+
+		<div class="space-y-8">
+			<!-- DNS Records -->
+			<div class="rounded-lg bg-white p-6 shadow">
+				<h3 class="text-lg font-medium text-gray-900 mb-4">1. DNS Records Configuration</h3>
+				<p class="text-sm text-gray-600 mb-4">
+					Configure the following DNS records. The tunnel domain is
+					<code class="rounded bg-gray-100 px-2 py-0.5 text-indigo-700">{ domain }</code>.
+				</p>
+				<div class="rounded-md bg-gray-900 p-4 font-mono text-sm text-green-400 overflow-x-auto">
+					<p class="mb-1">; Authoritative NS record — delegates queries to your server</p>
+					<p class="mb-3">{ domain }.    IN  NS   ns.{ domain }.</p>
+					<p class="mb-1">; A record pointing to your server IP</p>
+					<p class="mb-3">ns.{ domain }. IN  A    &lt;YOUR_SERVER_IP&gt;</p>
+					<p class="mb-1">; If using IPv6, also add AAAA</p>
+					<p>ns.{ domain }. IN  AAAA &lt;YOUR_SERVER_IPv6&gt;</p>
+				</div>
+				<p class="mt-3 text-xs text-gray-500">
+					Replace <code class="rounded bg-gray-100 px-1">&lt;YOUR_SERVER_IP&gt;</code> with the public IP of this server.
+				</p>
+			</div>
+
+			<!-- Verify DNS -->
+			<div class="rounded-lg bg-white p-6 shadow">
+				<h3 class="text-lg font-medium text-gray-900 mb-4">2. Verify DNS Setup</h3>
+				<p class="text-sm text-gray-600 mb-4">Run these commands to verify your DNS records are propagated:</p>
+				<div class="rounded-md bg-gray-900 p-4 font-mono text-sm text-green-400 overflow-x-auto">
+					<p class="mb-2">$ dig NS { domain }</p>
+					<p class="mb-1">; Should show: ns.{ domain }.</p>
+					<p class="mt-3 mb-2">$ dig A ns.{ domain }</p>
+					<p>; Should show your server IP</p>
+				</div>
+			</div>
+
+			<!-- Server Key -->
+			<div class="rounded-lg bg-white p-6 shadow">
+				<h3 class="text-lg font-medium text-gray-900 mb-4">3. Server Public Key</h3>
+				<p class="text-sm text-gray-600 mb-4">
+					Clients (MahsaNG) need this public key. It is embedded in generated configs automatically.
+				</p>
+				<div class="flex items-center gap-3">
+					<input type="text" id="pubkey-input" value={ pubkey } readonly
+						class="flex-1 rounded-md bg-gray-100 border-gray-300 py-2 px-3 font-mono text-sm ring-1 ring-inset ring-gray-300 text-gray-600"/>
+					<button onclick="copyToClipboard(document.getElementById('pubkey-input').value)"
+						class="rounded-md bg-gray-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-500">
+						Copy
+					</button>
+				</div>
+			</div>
+
+			<!-- MahsaNG Client Setup -->
+			<div class="rounded-lg bg-white p-6 shadow">
+				<h3 class="text-lg font-medium text-gray-900 mb-4">4. MahsaNG Client Setup</h3>
+				<ol class="list-decimal list-inside space-y-3 text-sm text-gray-700">
+					<li>Create a user from the <a href="users" class="text-indigo-600 hover:text-indigo-500 underline">Users page</a></li>
+					<li>Click the "Config" button on the user row to get the MahsaNG JSON</li>
+					<li>In MahsaNG/v2rayNG, import the config via clipboard or file</li>
+					<li>Connect — traffic flows: <code class="rounded bg-gray-100 px-1">App → MahsaNG → DNS queries → dnstt server → Shadowsocks → Internet</code></li>
+				</ol>
+			</div>
+
+			<!-- Port Forwarding -->
+			<div class="rounded-lg bg-white p-6 shadow">
+				<h3 class="text-lg font-medium text-gray-900 mb-4">5. Port Forwarding (iptables)</h3>
+				<p class="text-sm text-gray-600 mb-4">
+					The DNS tunnel needs to receive packets on external port 53. Running directly on :53 requires root.
+					It's better to listen on an unprivileged port (e.g. :5300) and redirect port 53 to it.
+					Replace <code class="rounded bg-gray-100 px-1">eth0</code> with your actual network interface (check with <code class="rounded bg-gray-100 px-1">ip a</code>).
+				</p>
+				<div class="rounded-md bg-gray-900 p-4 font-mono text-sm text-green-400 overflow-x-auto">
+					<p class="mb-1 text-gray-400"># Allow incoming UDP on port 5300</p>
+					<p class="mb-1">sudo iptables -I INPUT -p udp --dport 5300 -j ACCEPT</p>
+					<p class="mb-3">sudo ip6tables -I INPUT -p udp --dport 5300 -j ACCEPT</p>
+					<p class="mb-1 text-gray-400"># Redirect external port 53 → 5300</p>
+					<p class="mb-1">sudo iptables -t nat -I PREROUTING -i eth0 -p udp --dport 53 -j REDIRECT --to-ports 5300</p>
+					<p class="mb-3">sudo ip6tables -t nat -I PREROUTING -i eth0 -p udp --dport 53 -j REDIRECT --to-ports 5300</p>
+					<p class="mb-1 text-gray-400"># Make rules persistent across reboots (Debian/Ubuntu)</p>
+					<p class="mb-1">sudo apt install iptables-persistent</p>
+					<p>sudo netfilter-persistent save</p>
+				</div>
+			</div>
+
+			<!-- Architecture -->
+			<div class="rounded-lg bg-white p-6 shadow">
+				<h3 class="text-lg font-medium text-gray-900 mb-4">6. Architecture</h3>
+				<pre class="rounded-md bg-gray-50 p-4 text-sm font-mono text-gray-700 overflow-x-auto leading-relaxed">
+					@diagramBlock()
+				</pre>
+			</div>
+
+			<!-- Troubleshooting -->
+			<div class="rounded-lg bg-white p-6 shadow">
+				<h3 class="text-lg font-medium text-gray-900 mb-4">7. Troubleshooting</h3>
+				<dl class="space-y-4 text-sm">
+					<div>
+						<dt class="font-medium text-gray-900">DNS queries not reaching server?</dt>
+						<dd class="mt-1 text-gray-600">
+							Check that port 53 UDP is open on your firewall, and that your NS records are properly
+							configured. Use <code class="rounded bg-gray-100 px-1">tcpdump -n -i any port 5300</code> to verify.
+						</dd>
+					</div>
+					<div>
+						<dt class="font-medium text-gray-900">Client can't connect?</dt>
+						<dd class="mt-1 text-gray-600">
+							Ensure the public key matches and the domain is correct in the config. The user must
+							find a DNS resolver that works in their network and can reach your authoritative server
+							(try their ISP resolver, or public resolvers like 8.8.8.8, 1.1.1.1, 9.9.9.9 — different
+							resolvers may be blocked in different regions).
+						</dd>
+					</div>
+					<div>
+						<dt class="font-medium text-gray-900">Slow speeds?</dt>
+						<dd class="mt-1 text-gray-600">
+							DNS tunneling is inherently slower than direct connections. Try increasing MTU in settings
+							(up to 4096). The user should try different DNS resolvers — one with low latency to your
+							server and not blocked in their region will give the best speeds.
+						</dd>
+					</div>
+					<div>
+						<dt class="font-medium text-gray-900">Panel TLS not working?</dt>
+						<dd class="mt-1 text-gray-600">
+							ACME requires ports 80 and 443 to be open. Set the panel domain and ACME email in Settings.
+							If running behind a reverse proxy, use plain HTTP mode instead.
+						</dd>
+					</div>
+				</dl>
+			</div>
+		</div>
+	}
+}
+
+
+
+templ diagramBlock() {
+	@templ.Raw(`Client (MahsaNG)          Server (dnsttui)
+┌──────────────┐         ┌────────────────────────────────────┐
+│  SS Client   │         │  DNS Listener (:5300 UDP)          │
+│  (built-in)  │         │    ↓                               │
+│      ↓       │  DNS    │  dnstt decoder (KCP/Noise/smux)    │
+│  dnstt       │ ──────→ │    ↓                               │
+│  transport   │  query  │  Shadowsocks 2022 (127.0.0.1:8388) │
+│              │         │    ↓                               │
+└──────────────┘         │  Internet                          │
+                         │                                    │
+                         │  Panel (HTTPS :443)                │
+                         └────────────────────────────────────┘`)
+}
